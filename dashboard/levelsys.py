@@ -131,7 +131,7 @@ def get_level_info(student: Student) -> LevelInfoDict:
 	"""Uses a bunch of expensive database queries to compute a student's levels and data,
 	returning the findings as a typed dictionary."""
 
-	psets = PSet.objects.filter(student=student, approved=True, eligible=True)
+	psets = PSet.objects.filter(student__user=student.user, approved=True, eligible=True)
 	pset_data = psets.aggregate(
 		clubs_any=Sum('clubs'),
 		clubs_D=Sum('clubs', filter=Q(unit__code__startswith='D')),
@@ -148,13 +148,13 @@ def get_level_info(student: Student) -> LevelInfoDict:
 		Sum('achievement__diamonds')
 	)['achievement__diamonds__sum'] or 0
 
-	quiz_attempts = ExamAttempt.objects.filter(student=student)
-	quest_completes = QuestComplete.objects.filter(student=student)
-	mock_completes = MockCompleted.objects.filter(student=student).select_related('exam')
+	quiz_attempts = ExamAttempt.objects.filter(student__user=student.user)
+	quest_completes = QuestComplete.objects.filter(student__user=student.user)
+	mock_completes = MockCompleted.objects.filter(student__user=student.user)
+	mock_completes = mock_completes.select_related('exam')
 	market_guesses = Guess.objects.filter(
 		user=student.user,
 		market__end_date__lt=timezone.now(),
-		market__semester=student.semester,
 	).select_related('market')
 	suggested_units_queryset = ProblemSuggestion.objects.filter(
 		user=student.user,
@@ -171,7 +171,7 @@ def get_level_info(student: Student) -> LevelInfoDict:
 	hints_written = hints_written.values_list('revision__date_created', flat=True)
 	hint_spades = get_week_count(list(hints_written))
 
-	total_spades = quiz_attempts.aggregate(Sum('score'))['score__sum'] or 0
+	total_spades = (quiz_attempts.aggregate(Sum('score'))['score__sum'] or 0) * 2
 	total_spades += quest_completes.aggregate(Sum('spades'))['spades__sum'] or 0
 	total_spades += market_guesses.aggregate(Sum('score'))['score__sum'] or 0
 	total_spades += mock_completes.count() * 3
@@ -216,21 +216,23 @@ def annotate_student_queryset_with_scores(queryset: QuerySet[Student]) -> QueryS
 	).order_by().values('user', 'market__semester').annotate(total=Sum('score')).values('total')
 
 	return queryset.select_related('user', 'user__profile', 'assistant', 'semester').annotate(
-		num_psets=SubqueryCount('pset', filter=Q(approved=True, eligible=True)),
-		clubs_any=SubquerySum('pset__clubs', filter=Q(approved=True, eligible=True)),
+		num_psets=SubqueryCount('user__student__pset', filter=Q(approved=True, eligible=True)),
+		clubs_any=SubquerySum('user__student__pset__clubs', filter=Q(approved=True, eligible=True)),
 		clubs_D=SubquerySum(
-			'pset__clubs', filter=Q(approved=True, eligible=True, unit__code__startswith='D')
+			'user__student__pset__clubs',
+			filter=Q(approved=True, eligible=True, unit__code__startswith='D')
 		),
 		clubs_Z=SubquerySum(
-			'pset__clubs', filter=Q(approved=True, eligible=True, unit__code__startswith='Z')
+			'user__student__pset__clubs',
+			filter=Q(approved=True, eligible=True, unit__code__startswith='Z')
 		),
-		hearts=SubquerySum('pset__hours', filter=Q(approved=True, eligible=True)),
+		hearts=SubquerySum('user__student__pset__hours', filter=Q(approved=True, eligible=True)),
 		diamonds=SubquerySum('user__achievementunlock__achievement__diamonds'),
 		pset_B_count=SubqueryCount('pset__pk', filter=Q(eligible=True, unit__code__startswith='B')),
 		pset_D_count=SubqueryCount('pset__pk', filter=Q(eligible=True, unit__code__startswith='D')),
 		pset_Z_count=SubqueryCount('pset__pk', filter=Q(eligible=True, unit__code__startswith='Z')),
-		spades_quizzes=SubquerySum('examattempt__score'),
-		spades_quests=SubquerySum('questcomplete__spades'),
+		spades_quizzes=SubquerySum('user__student__examattempt__score'),
+		spades_quests=SubquerySum('user__student__questcomplete__spades'),
 		spades_markets=Subquery(guess_subquery),  # type: ignore
 		spades_count_mocks=SubqueryCount('mockcompleted'),
 		spades_suggestions=SubqueryCount(
@@ -258,7 +260,7 @@ def get_student_rows(queryset: QuerySet[Student]) -> List[Dict[str, Any]]:
 	for student in annotate_student_queryset_with_scores(queryset):
 		row: Dict[str, Any] = {}
 		row['student'] = student
-		row['spades'] = (getattr(student, 'spades_quizzes', 0) or 0)
+		row['spades'] = (getattr(student, 'spades_quizzes', 0) or 0) * 2
 		row['spades'] += (getattr(student, 'spades_quests', 0) or 0)
 		# TODO markets
 		row['spades'] += (getattr(student, 'spades_count_mocks', 0) or 0) * 3
@@ -300,13 +302,17 @@ def get_student_rows(queryset: QuerySet[Student]) -> List[Dict[str, Any]]:
 
 
 def check_level_up(student: Student) -> bool:
+	if not student.semester.active:
+		return False
 	level_info = get_level_info(student)
 	level_number = level_info['level_number']
 	if level_number <= student.last_level_seen:
 		return False
 
 	bonuses = BonusLevel.objects.filter(active=True, level__lte=level_number)
-	bonuses = bonuses.annotate(gotten=Exists('bonuslevelunlock', filter=Q(student=student)))
+	bonuses = bonuses.annotate(
+		gotten=Exists('bonuslevelunlock', filter=Q(student__user=student.user))
+	)
 	bonuses = bonuses.exclude(gotten=True)
 
 	if bonuses.exists():

@@ -74,12 +74,15 @@ def venueq_handler(action: str, request: HttpRequest) -> JsonResponse:
 							list(
 								PSet.objects.filter(
 									approved=False,
+									rejected=False,
 									student__semester__active=True,
 									student__legit=True,
+									student__enabled=True,
 								).values(
 									'pk',
 									'approved',
 									'resubmitted',
+									'eligible',
 									'feedback',
 									'special_notes',
 									'student__pk',
@@ -88,7 +91,6 @@ def venueq_handler(action: str, request: HttpRequest) -> JsonResponse:
 									'student__user__email',
 									'hours',
 									'clubs',
-									'eligible',
 									'unit__group__name',
 									'unit__code',
 									'unit__pk',
@@ -105,6 +107,7 @@ def venueq_handler(action: str, request: HttpRequest) -> JsonResponse:
 							list(
 								inquiries.values(
 									'pk',
+									'action_type',
 									'unit__group__name',
 									'unit__code',
 									'student__user__first_name',
@@ -157,21 +160,25 @@ def discord_handler(action: str, request: HttpRequest) -> JsonResponse:
 	social = queryset.get()  # get the social account for this; should never 404
 	user = social.user
 	student = Student.objects.filter(user=user, semester__active=True).first()
-	regform = StudentRegistration.objects.filter(
-		user=user, container__semester__active=True
-	).first()
+	if student is None:
+		student = Student.objects.filter(user=user).order_by('-pk').first()
+		active = False
+	else:
+		active = True
+	regform = StudentRegistration.objects.filter(user=user).order_by('-pk').first()
 
 	if student is not None:
 		return JsonResponse(
 			{
 				'result': 'success',
 				'user': social.user.username,
-				'name': social.user.get_full_name(),
+				'name': student.name,
 				'uid': uid,
 				'track': student.track,
 				'gender': regform.gender if regform is not None else '?',
 				'country': regform.country if regform is not None else '???',
 				'num_years': Student.objects.filter(user=user).count(),
+				'active': active,
 			}
 		)
 	elif student is None and regform is not None:

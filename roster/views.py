@@ -24,7 +24,7 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required, user_passes_test  # NOQA
 from django.contrib.auth.models import Group, User
-from django.core.exceptions import ObjectDoesNotExist, PermissionDenied, SuspiciousOperation
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied, SuspiciousOperation  # NOQA
 from django.db.models.expressions import F
 from django.db.models.fields import FloatField
 from django.db.models.functions.comparison import Cast
@@ -210,7 +210,7 @@ class UpdateInvoice(
 		'extras',
 		'total_paid',
 		'forgive',
-		'forgive_memo',
+		'memo',
 	)
 	object: Invoice
 
@@ -226,6 +226,10 @@ def inquiry(request: AuthHttpRequest, student_id: int) -> HttpResponse:
 		raise PermissionDenied(
 			"Not an active semester, so change petitions are no longer possible."
 		)
+	if student.is_delinquent:
+		raise PermissionDenied("Student is delinquent")
+	if not student.enabled:
+		raise PermissionDenied("Student account not enabled")
 	if student.newborn:
 		raise PermissionDenied(
 			"This form isn't enabled yet because you have not chosen your initial units."
@@ -265,24 +269,22 @@ def inquiry(request: AuthHttpRequest, student_id: int) -> HttpResponse:
 
 				# auto hold criteria
 				num_psets = PSet.objects.filter(student=student).count()
-				auto_hold_criteria = (num_past_unlock_inquiries > (15 + 10 * num_psets))
+				auto_hold_criteria = (num_past_unlock_inquiries > (10 + 1.5 * num_psets))
 
 				# auto-acceptance criteria
 				auto_accept_criteria = (inquiry.action_type == "APPEND")
-				auto_accept_criteria |= (inquiry.action_type == "DROP")
 				auto_accept_criteria |= (
 					num_past_unlock_inquiries <= 6 and unlocked_count < 9 and
 					(not auto_hold_criteria and not auto_reject_criteria)
 				)
-				auto_accept_criteria |= (
-					inquiry.action_type == "UNLOCK" and
-					current_inquiries.filter(action_type="DROP", status="ACC", unit=inquiry.unit).exists()
-					and not current_inquiries.filter(action_type="APPEND", unit=inquiry.unit).exists() and
-					not auto_hold_criteria and not auto_reject_criteria
-				)
-				auto_accept_criteria |= request.user.is_staff
 
-				if auto_accept_criteria:
+				if auto_reject_criteria and not request.user.is_staff:
+					inquiry.status = "REJ"
+					inquiry.save()
+					messages.error(
+						request, "You can't have more than 9 unfinished units unlocked at once."
+					)
+				elif auto_accept_criteria or request.user.is_staff:
 					inquiry.run_accept()
 					messages.success(request, "Petition automatically approved.")
 				elif auto_hold_criteria:
@@ -291,12 +293,6 @@ def inquiry(request: AuthHttpRequest, student_id: int) -> HttpResponse:
 					messages.warning(
 						request, "You have submitted an abnormally large number of petitions " +
 						"so you should contact Evan specially to explain why."
-					)
-				elif auto_reject_criteria:
-					inquiry.status = "REJ"
-					inquiry.save()
-					messages.error(
-						request, "You can't have more than 9 unfinished units unlocked at once."
 					)
 				else:
 					messages.success(request, "Petition submitted, wait for it!")

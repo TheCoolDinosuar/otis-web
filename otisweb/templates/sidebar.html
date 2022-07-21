@@ -2,9 +2,13 @@
 <table class="text-center align-middle" style="width: 100%; height:128px; font-size: 22px; text-shadow: 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000, -1px 0 0 #000;">
 	<tr>
 		<td><a title="Home" class="emoji-link" href="{% url "index" %}">🏠</a></td>
+		{% if request.user.is_superuser %}
+		<td><a title="Past" class="emoji-link" href="{% url "semlist" %}">🕗</a></td>
+		{% else %}
 		<td><a title="Past" class="emoji-link" href="{% url "past" %}">🕗</a></td>
-		<td><a title="Security" class="emoji-link" href="{% url "socialaccount_connections" %}">🔐</a></td>
-		<td><a title="Settings" class="emoji-link" href="{% url "profile" %}">⚙️</a></td>
+		{% endif %}
+		<td><a title="Linked accounts" class="emoji-link" href="{% url "socialaccount_connections" %}">🔐</a></td>
+		<td><a title="Display settings" class="emoji-link" href="{% url "profile" %}">⚙️</a></td>
 	</tr>
 	<tr>
 		<td><a title="ARCH" class="emoji-link" href="{% url "arch-index" %}">🗼</a></td>
@@ -59,7 +63,7 @@
 {% if student and request.user.is_staff %}
 <ul>
 	<li>
-		<a target="_blank" href="mailto:{{student.user.email}}">Send email</a><br />
+		<a target="_blank" href="mailto:{{student.user.email}}" rel="noreferrer">Send email</a><br />
 	</li>
 	{% if request.user.is_superuser %}
 	<li><a href="{% url "admin:roster_student_change" student.id %}">Edit</a></li>

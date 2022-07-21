@@ -49,7 +49,7 @@ class Market(models.Model):
 		null=True,
 		blank=True,
 	)
-	show_answer = models.BooleanField(default=False)
+	show_answer = models.BooleanField(default=True)
 
 	objects = models.Manager()
 	started = StartedMarketManager()
@@ -119,8 +119,10 @@ class Guess(models.Model):
 			return None
 
 	def set_score(self):
-		self.score = self.get_score()
-		self.save()
+		score = self.get_score()
+		if score is not None:
+			self.score = score
+			self.save()
 
 	def get_absolute_url(self) -> str:
 		return reverse_lazy('market-results', args=(self.market.slug, ))

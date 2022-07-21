@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 
 import logging
 from datetime import timedelta
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from braces.views import LoginRequiredMixin, StaffuserRequiredMixin, SuperuserRequiredMixin  # NOQA
 from core.models import Semester, Unit, UserProfile
@@ -31,7 +31,7 @@ from dwhandler import SUCCESS_LOG_LEVEL, VERBOSE_LOG_LEVEL
 from exams.models import PracticeExam
 from markets.models import Market
 from otisweb.utils import AuthHttpRequest, get_mailchimp_campaigns
-from roster.models import Student, StudentRegistration
+from roster.models import RegistrationContainer, Student, StudentRegistration
 from roster.utils import can_edit, can_view, get_student_by_id, get_visible_students  # NOQA
 from sql_util.utils import SubqueryAggregate
 
@@ -194,13 +194,20 @@ def leaderboard(request: AuthHttpRequest) -> HttpResponse:
 @login_required
 def submit_pset(request: HttpRequest, student_id: int) -> HttpResponse:
 	student = get_student_by_id(request, student_id)
+	if student.semester.active is False:
+		raise PermissionDenied("Not an active semester")
+	if student.enabled is False:
+		raise PermissionDenied("Not enabled")
+	if student.is_delinquent:
+		raise PermissionDenied("Student is delinquent")
+
 	if request.method == 'POST':
 		form = PSetSubmitForm(request.POST, request.FILES)
 	else:
 		form = PSetSubmitForm()
 
-	form.fields['unit'].queryset = get_units_to_submit(student)
-	form.fields['next_unit_to_unlock'].queryset = get_units_to_unlock(student)
+	form.fields['unit'].queryset = get_units_to_submit(student)  # type: ignore
+	form.fields['next_unit_to_unlock'].queryset = get_units_to_unlock(student)  # type: ignore
 	if request.method == 'POST' and form.is_valid():
 		pset = form.save(commit=False)
 		if PSet.objects.filter(student=student, unit=pset.unit).exists():
@@ -263,9 +270,10 @@ def resubmit_pset(request: HttpRequest, pk: int) -> HttpResponse:
 		assert pset.upload is not None
 		pset.upload.content = form.cleaned_data['content']
 		pset.upload.save()
-		if pset.approved is True:
-			pset.approved = False
+		if pset.rejected or pset.approved:
 			pset.resubmitted = True
+		pset.rejected = False
+		pset.approved = False
 		pset.save()
 		messages.success(
 			request, "The problem set is submitted successfully "
@@ -327,29 +335,49 @@ def index(request: AuthHttpRequest) -> HttpResponse:
 		'track', 'user__first_name', 'user__last_name'
 	)
 	context: Dict[str, Any] = {}
-	context['title'] = "Current Semester Listing"
+	context['title'] = "Current year listing"
 	context['rows'] = get_student_rows(queryset)
 	context['stulist_show_semester'] = False
 	context['submitted_registration'] = StudentRegistration.objects.filter(
 		user=request.user, container__semester__active=True
 	).exists()
+	context['exists_registration'] = RegistrationContainer.objects.filter(
+		semester__active=True,
+	).exists()
 	return render(request, "dashboard/stulist.html", context)
 
 
 @login_required
-def past(request: AuthHttpRequest, semester: Semester = None):
+def past(request: AuthHttpRequest, semester_id: Optional[int] = None):
 	students = get_visible_students(request.user, current=False)
-	if semester is not None:
+	if semester_id is not None:
+		semester = Semester.objects.get(pk=semester_id)
 		students = students.filter(semester=semester)
+	else:
+		semester = None
 	queryset = annotate_student_queryset_with_scores(students).order_by(
 		'track', 'user__first_name', 'user__last_name'
 	)
 	context: Dict[str, Any] = {}
-	context['title'] = "Previous Semester Listing"
+	context['title'] = "Previous year listing"
 	context['rows'] = get_student_rows(queryset)
-	context['stulist_show_semester'] = True
 	context['past'] = True
+	if semester is not None:
+		context['semester'] = semester
+		context['stulist_show_semester'] = False
+	else:
+		context['stulist_show_semester'] = True
 	return render(request, "dashboard/stulist.html", context)
+
+
+class SemesterList(LoginRequiredMixin, ListView[Semester]):
+	model = Semester
+	template_name = "dashboard/semlist.html"
+
+	def get_queryset(self) -> QuerySet[Semester]:
+		queryset = super(SemesterList, self).get_queryset()
+		queryset = queryset.annotate(count=Count('student'))  # type: ignore
+		return queryset  # type: ignore
 
 
 class UpdateFile(LoginRequiredMixin, UpdateView[UploadedFile, BaseModelForm[UploadedFile]]):
@@ -451,10 +479,17 @@ class ProblemSuggestionCreate(
 	)
 	model = ProblemSuggestion
 
+	def get_form(self, *args: Any, **kwargs: Any) -> BaseModelForm[ProblemSuggestion]:
+		form = super(CreateView, self).get_form(*args, **kwargs)
+		form.fields['unit'].queryset = Unit.objects.filter(group__hidden=False)
+		return form
+
 	def get_initial(self):
 		initial = super().get_initial()
-		if 'unit_id' in self.kwargs:
-			initial['unit'] = self.kwargs['unit_id']
+		uid = self.kwargs.get('unit_id', None)
+		if uid is not None:
+			if Unit.objects.get(id=uid).group.hidden is False:
+				initial['unit'] = uid
 		return initial
 
 	def form_valid(self, form: BaseModelForm[ProblemSuggestion]):
@@ -571,7 +606,7 @@ class PalaceUpdate(
 		student = get_student_by_id(self.request, self.kwargs['student_id'])
 		assert_maxed_out_level_info(student)
 		self.student = student
-		carving, is_created = PalaceCarving.objects.get_or_create(student=student)
+		carving, is_created = PalaceCarving.objects.get_or_create(user=student.user)
 		if is_created is True:
 			carving.display_name = student.name
 		return carving
@@ -580,6 +615,9 @@ class PalaceUpdate(
 		context = super().get_context_data(**kwargs)
 		context['student'] = self.student
 		return context
+
+	def get_success_url(self):
+		return reverse_lazy('palace-list', args=(self.student.id, ))
 
 
 class DiamondUpdate(
@@ -601,13 +639,13 @@ class DiamondUpdate(
 			raise PermissionDenied("The palace can't be edited through an inactive student")
 		assert_maxed_out_level_info(student)
 		self.student = student
-		achievement, _ = Achievement.objects.get_or_create(creator=student)
+		achievement, _ = Achievement.objects.get_or_create(creator=student.user)
 		return achievement
 
 	def form_valid(self, form: BaseModelForm[Achievement]):
 		level_info = assert_maxed_out_level_info(self.student)
 		form.instance.diamonds = level_info['meters']['diamonds'].level
-		form.instance.creator = self.student
+		form.instance.creator = self.student.user
 		messages.success(
 			self.request,
 			f"Successfully forged diamond worth {form.instance.diamonds}◆, your current charisma level.",

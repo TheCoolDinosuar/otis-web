@@ -30,10 +30,13 @@ CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap5'
 CRISPY_TEMPLATE_PACK = 'bootstrap5'
 LOGIN_REDIRECT_URL = '/'
 
-PRODUCTION = bool(os.getenv('IS_PRODUCTION'))
+PRODUCTION = bool(int(os.getenv('IS_PRODUCTION') or 0))
 DEBUG = not PRODUCTION
 if PRODUCTION:
 	ALLOWED_HOSTS = ['otis.evanchen.cc', '.localhost', '127.0.0.1']
+	CSRF_TRUSTED_ORIGINS = [
+		'https://otis.evanchen.cc',
+	]
 else:
 	INTERNAL_IPS = [
 		'127.0.0.1',
@@ -229,8 +232,8 @@ API_TARGET_HASH = os.getenv(
 )
 PATH_STATEMENT_ON_DISK = os.getenv("PATH_STATEMENT_ON_DISK", None)
 
-WIKI_ACCOUNT_HANDLING = True
-WIKI_ACCOUNT_SIGNUP_ALLOWED = True
+WIKI_ACCOUNT_HANDLING = False
+WIKI_ACCOUNT_SIGNUP_ALLOWED = False
 WIKI_PLUGINS_METHODS = ('article_list', 'toc', 'meow')
 
 

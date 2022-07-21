@@ -123,6 +123,8 @@ class UnitGroup(models.Model):
 			return "Misc"
 		elif self.subject == "F":
 			return "Func eqn"
+		elif self.subject == "K":
+			return "Secret"
 
 	class Meta:
 		ordering = ('name', )

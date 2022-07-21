@@ -17,7 +17,7 @@ from django.urls import reverse_lazy
 from roster.models import Student
 
 
-def validate_at_most_1mb(f: File):
+def validate_at_most_1mb(f: File):  # type: ignore
 	if f.size > 1024 * 1024:
 		raise ValidationError("At most 1MB allowed")
 
@@ -155,6 +155,9 @@ class PSet(models.Model):
 	eligible = models.BooleanField(
 		default=True, help_text="Whether to count this for leveling up"
 	)
+	rejected = models.BooleanField(
+		default=False, help_text="If a problem set is rejected and needs attention."
+	)
 	feedback = models.TextField(
 		verbose_name="Feedback on problem set, worth [1♣]",
 		help_text="Any other feedback about the problem set",
@@ -235,7 +238,7 @@ class Achievement(models.Model):
 		validators=[
 			RegexValidator(regex=r'^[a-f0-9]{24,25}$', message='24-25 char hex string'),
 		],
-	)
+	)  # e.g. 52656164546865436f646521
 	name = models.CharField(max_length=128, help_text="Name of the achievement")
 	image = models.ImageField(
 		upload_to=achievement_image_file_name,
@@ -247,16 +250,17 @@ class Achievement(models.Model):
 	description = models.TextField(
 		help_text="Text shown beneath this achievement for students who obtain it."
 	)
+	solution = models.TextField(help_text="Internal note by Evan where the diamond is hidden")
 	active = models.BooleanField(help_text="Whether the code is active right now", default=True)
 	diamonds = models.SmallIntegerField(
 		default=1, help_text="Number of diamonds for this achievement"
 	)
 	creator = models.ForeignKey(
-		Student,
+		User,
 		on_delete=models.CASCADE,
 		null=True,
 		blank=True,
-		help_text="Student who owns this achievement"
+		help_text="User who owns this achievement"
 	)
 
 	def __str__(self) -> str:
@@ -343,7 +347,7 @@ def palace_image_file_name(instance: 'PalaceCarving', filename: str) -> str:
 
 
 class PalaceCarving(models.Model):
-	student = models.OneToOneField(Student, on_delete=models.CASCADE, null=True, blank=True)
+	user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
 	display_name = models.CharField(
 		max_length=128,
 		help_text="How you would like your name to be displayed in the Ruby Palace."
@@ -368,6 +372,3 @@ class PalaceCarving(models.Model):
 
 	def __str__(self) -> str:
 		return f"Palace carving for {self.display_name}"
-
-	def get_absolute_url(self):
-		return reverse_lazy("palace-list", args=(self.student.id, ))

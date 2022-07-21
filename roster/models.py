@@ -1,8 +1,8 @@
 from __future__ import unicode_literals
-from hashlib import pbkdf2_hmac
 
 import os
 from datetime import timedelta
+from hashlib import pbkdf2_hmac
 from typing import Any, Callable, Dict, List
 
 from _pydecimal import Decimal
@@ -109,6 +109,9 @@ class Student(models.Model):
 		"This will hide them from the master schedule, for example."
 	)
 	newborn = models.BooleanField(default=True, help_text="Whether the student is newly created.")
+	enabled = models.BooleanField(
+		default=True, help_text="Allow student to submit/request units."
+	)
 
 	last_level_seen = models.PositiveSmallIntegerField(
 		default=0, help_text="The last level the student was seen at."
@@ -239,7 +242,7 @@ class Student(models.Model):
 			else:
 				row['is_approved'] = getattr(unit, 'approved')
 
-			if row['is_submitted']:
+			if row['is_submitted'] or (row['is_visible'] and self.semester.active is False):
 				row['sols_label'] = "🗝️"
 			elif omniscient and row['is_visible']:
 				row['sols_label'] = "㊙️"
@@ -333,9 +336,7 @@ class Invoice(models.Model):
 	forgive = models.BooleanField(
 		default=False, help_text="When switched on, won't hard-lock delinquents."
 	)
-	forgive_memo = models.TextField(
-		blank=True, help_text="Internal note to self about why forgive=True."
-	)
+	memo = models.TextField(blank=True, help_text="Internal note to self.")
 
 	def __str__(self):
 		return f"Invoice {self.pk or 0}"

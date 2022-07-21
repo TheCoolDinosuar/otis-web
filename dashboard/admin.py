@@ -53,6 +53,7 @@ class SemesterDownloadFileAdmin(admin.ModelAdmin):
 class PSetAdmin(admin.ModelAdmin):
 	list_display = (
 		'approved',
+		'rejected',
 		'student',
 		'unit',
 		'hours',
@@ -67,6 +68,7 @@ class PSetAdmin(admin.ModelAdmin):
 	)
 	list_filter = (
 		'approved',
+		'rejected',
 		'student__assistant',
 		'student__track',
 		'student__semester__active',
@@ -84,13 +86,17 @@ class PSetAdmin(admin.ModelAdmin):
 				pset.student.unlocked_units.add(pset.next_unit_to_unlock)
 			if pset.unit is not None:
 				pset.student.unlocked_units.remove(pset.unit)
-		queryset.update(approved=True)
+		queryset.update(approved=True, rejected=False)
+
+	def approve_pset_without_unlock(self, request: HttpRequest, queryset: QuerySet[PSet]):
+		queryset.update(approved=True, rejected=False)
 
 	def reject_pset(self, request: HttpRequest, queryset: QuerySet[PSet]):
-		queryset.update(approved=False)
+		queryset.update(approved=False, rejected=True)
 
 	actions = [
 		'approve_pset',
+		'approve_pset_without_unlock',
 		'reject_pset',
 	]
 
@@ -166,13 +172,22 @@ class AchievementIEResource(resources.ModelResource):
 			'diamonds',
 			'active',
 			'description',
+			'solution',
 		)
 
 
 @admin.register(Achievement)
 class AchievementAdmin(ImportExportModelAdmin):
-	list_display = ('code', 'name', 'diamonds', 'active', 'description', 'image')
-	search_fields = ('code', 'description')
+	list_display = (
+		'code',
+		'name',
+		'diamonds',
+		'active',
+		'description',
+		'solution',
+		'creator',
+	)
+	search_fields = ('code', 'description', 'solution')
 	list_filter = ('active', )
 	resource_class = AchievementIEResource
 

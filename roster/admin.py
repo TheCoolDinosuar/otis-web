@@ -93,7 +93,7 @@ class InvoiceIEResource(resources.ModelResource):
 			'total_paid',
 			'student__semester__name',
 			'forgive',
-			'forgive_memo',
+			'memo',
 		)
 
 
@@ -102,7 +102,10 @@ class OwedFilter(admin.SimpleListFilter):
 	parameter_name = 'has_owed'
 
 	def lookups(self, request: HttpRequest, model_admin: 'InvoiceAdmin') -> List[Tuple[str, str]]:
-		return [("incomplete", "Incomplete"), ("paid", "Paid in full"), ("zero", "No payment")]
+		return [
+			("incomplete", "Incomplete"), ("paid", "Paid in full"), ("excess", "Overpaid"),
+			("zero", "No payment")
+		]
 
 	def queryset(self, request: HttpRequest, queryset: QuerySet[Model]):
 		if self.value() is None:
@@ -119,6 +122,8 @@ class OwedFilter(admin.SimpleListFilter):
 				return queryset.filter(owed__gt=0)
 			elif self.value() == "paid":
 				return queryset.filter(owed__lte=0)
+			elif self.value() == "excess":
+				return queryset.filter(owed__lt=0)
 			elif self.value() == "zero":
 				return queryset.filter(owed__gt=0).filter(total_paid=0)
 
@@ -141,11 +146,11 @@ class InvoiceAdmin(ImportExportModelAdmin):
 	ordering = ('student', )
 	list_filter = (
 		OwedFilter,
-		'forgive',
-		'student__semester__active',
-		'student__semester',
 		'student__legit',
+		'student__semester__active',
 		'student__track',
+		'forgive',
+		'student__semester',
 	)
 	resource_class = InvoiceIEResource
 
@@ -195,7 +200,7 @@ class InvoiceInline(admin.StackedInline):
 		'adjustment',
 		'total_paid',
 		'forgive',
-		'forgive_memo',
+		'memo',
 	)
 	readonly_fields = (
 		'student',
@@ -300,21 +305,19 @@ def build_students(queryset: QuerySet[StudentRegistration]) -> int:
 @admin.register(StudentRegistration)
 class StudentRegistrationAdmin(ImportExportModelAdmin):
 	list_display = (
+		'container',
 		'processed',
 		'name',
 		'track',
 		'about',
-		'country',
-		'aops_username',
 		'agreement_form',
 	)
 	list_filter = (
+		'container__semester',
 		'processed',
-		'container',
 		'track',
 		'gender',
 		'graduation_year',
-		'country',
 	)
 	list_display_links = (
 		'name',

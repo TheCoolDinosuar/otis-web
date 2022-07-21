@@ -4,6 +4,9 @@
 
 {% if rows|length > 0 %} {# if >0 student to list #}
 <p>Here are the participants to which you have access.</p>
+{% if semester %}
+<p>The list is restricted to <b>{{ semester.name }}</b>.</p>
+{% endif %}
 
 <table id="students" class="table tablesorter">
 	<thead class="table-dark">
@@ -25,7 +28,11 @@
 		<tr> {# begin table row for this student #}
 			<td>{{ forloop.counter }}</td>
 			<td><a href="{% url "portal" student.id %}">
-					{{ student.name }}</a></td>
+					{{ student.name }}</a>
+				{% if not student.enabled %}
+				(disabled)
+				{% endif %}
+			</td>
 
 			{% if stulist_show_semester %}
 			<td>{{ student.semester }}</td>
@@ -64,18 +71,29 @@
 	so you'll need to wait for it to be approved and activated.
 	Contact me if you think this is an error.</p>
 
-{% else %}
+{% elif exists_registration %}
 <p>To register for this year,
-	<a href="{% url "register" %}">submit the decision form</a>.</p>
+	<a href="{% url "register" %}">submit the decision form</a>.
+</p>
+{% else %}
+<p>You can view <a href="{% url "past" %}">🕗 all past years</a>
+	if you participated in OTIS before.
+	(You can also click the clock icon at the right.)
+</p>
 {% endif %}
 {% endif %}
 
 {% if past %}
-<p>This page includes past years of OTIS too.</p>
-{% else %}
-<p>You can view <a href="{% url "past" %}">🕗 past semesters</a>
+{% if semester %}
+<p>You can view <a href="{% url "past" %}">🕗 all past years</a>
 	if you participated in OTIS before.</p>
+{% else %}
+<p>This page includes all years of OTIS.
+	You can also see <a href="{% url "semlist" %}">a listing of all years.</a>
+</p>
 {% endif %}
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}
