@@ -211,12 +211,11 @@ def annotate_student_queryset_with_scores(queryset: QuerySet[Student]) -> QueryS
 	Selects all important information to prevent a bunch of SQL queries"""
 	guess_subquery = Guess.objects.filter(
 		user=OuterRef('user'),
-		market__semester=OuterRef('semester'),
 		market__end_date__lt=timezone.now(),
-	).order_by().values('user', 'market__semester').annotate(total=Sum('score')).values('total')
+	).order_by().values('user').annotate(total=Sum('score')).values('total')
 
 	return queryset.select_related('user', 'user__profile', 'assistant', 'semester').annotate(
-		num_psets=SubqueryCount('user__student__pset', filter=Q(approved=True, eligible=True)),
+		num_psets=SubqueryCount('pset', filter=Q(approved=True, eligible=True)),
 		clubs_any=SubquerySum('user__student__pset__clubs', filter=Q(approved=True, eligible=True)),
 		clubs_D=SubquerySum(
 			'user__student__pset__clubs',
@@ -234,7 +233,7 @@ def annotate_student_queryset_with_scores(queryset: QuerySet[Student]) -> QueryS
 		spades_quizzes=SubquerySum('user__student__examattempt__score'),
 		spades_quests=SubquerySum('user__student__questcomplete__spades'),
 		spades_markets=Subquery(guess_subquery),  # type: ignore
-		spades_count_mocks=SubqueryCount('mockcompleted'),
+		spades_count_mocks=SubqueryCount('user__student__mockcompleted'),
 		spades_suggestions=SubqueryCount(
 			'user__problemsuggestion__unit__pk',
 			filter=Q(resolved=True, eligible=True),

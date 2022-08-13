@@ -466,6 +466,13 @@ class RegistrationContainer(models.Model):
 
 
 class StudentRegistration(models.Model):
+	GENDER_CHOICES = (
+		("M", "Male"),
+		("F", "Female"),
+		("H", "Nonbinary"),
+		("O", "Other"),
+		("U", "Prefer not to say"),
+	)
 	user = models.ForeignKey(
 		User,
 		help_text="The user to attach",
@@ -489,21 +496,15 @@ class StudentRegistration(models.Model):
 			("B", "Meeting with Evan"),
 			("E", "Meeting with another instructor"),
 			("N", "None of the above"),
-		)
+		),
+		default="C"
 	)
 	gender = models.CharField(
 		max_length=2,
 		default='',
-		choices=(
-			("", "Prefer not to say"),
-			("M", "Male"),
-			("F", "Female"),
-			("H", "Nonbinary"),
-			("O", "Other"),
-		),
+		choices=GENDER_CHOICES,
 		help_text="If you are comfortable answering, "
 		"specify which gender you most closely identify with.",
-		blank=True
 	)
 
 	graduation_year = models.IntegerField(

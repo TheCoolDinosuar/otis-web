@@ -24,12 +24,12 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required, user_passes_test  # NOQA
 from django.contrib.auth.models import Group, User
-from django.core.exceptions import ObjectDoesNotExist, PermissionDenied, SuspiciousOperation  # NOQA
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied  # NOQA
 from django.db.models.expressions import F
 from django.db.models.fields import FloatField
 from django.db.models.functions.comparison import Cast
 from django.forms.models import BaseModelForm
-from django.http import Http404, HttpRequest, HttpResponse, HttpResponseRedirect  # NOQA
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect  # NOQA
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
@@ -41,7 +41,7 @@ from otisweb.utils import AuthHttpRequest, mailchimp_subscribe
 from roster.utils import can_edit, get_current_students, get_student_by_id, infer_student  # NOQA
 
 from .forms import AdvanceForm, CurriculumForm, DecisionForm, InquiryForm, UserForm  # NOQA
-from .models import Invoice, RegistrationContainer, Student, StudentRegistration, UnitInquiry  # NOQA
+from .models import Invoice, RegistrationContainer, StudentRegistration, UnitInquiry  # NOQA
 
 # Create your views here.
 
@@ -153,26 +153,6 @@ def invoice(request: HttpRequest, student_id: int = None) -> HttpResponse:
 	}
 	# return HttpResponse("hi")
 	return render(request, "roster/invoice.html", context)
-
-
-# this is not gated
-def invoice_standalone(request: HttpRequest, student_id: int, checksum: str) -> HttpResponse:
-	student = Student.objects.get(id=student_id)
-
-	if checksum != student.get_checksum(settings.INVOICE_HASH_KEY):
-		raise SuspiciousOperation("Bad hash provided")
-	try:
-		invoice = student.invoice
-	except ObjectDoesNotExist:
-		raise Http404("No invoice exists for this student")
-	context = {
-		'title': "Invoice for " + student.name,
-		'student': student,
-		'invoice': invoice,
-		'checksum': checksum
-	}
-	# return HttpResponse("hi")
-	return render(request, "roster/invoice-standalone.html", context)
 
 
 @staff_member_required
@@ -326,7 +306,7 @@ def register(request: AuthHttpRequest) -> HttpResponse:
 			passcode = form.cleaned_data['passcode']
 			if passcode.lower() != container.passcode.lower():
 				messages.error(request, message="Wrong passcode")
-			elif form.cleaned_data['track'] not in container.allowed_tracks.split(','):
+			elif form.cleaned_data.get('track', 'C') not in container.allowed_tracks.split(','):
 				messages.error(request, message="That track is not currently accepting registrations.")
 			else:
 				registration = form.save(commit=False)

@@ -14,7 +14,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.messages.views import SuccessMessageMixin
-from django.core.exceptions import PermissionDenied, SuspiciousOperation
+from django.core.exceptions import PermissionDenied
 from django.db.models import Count, OuterRef, Subquery
 from django.db.models.expressions import Exists
 from django.db.models.query import QuerySet
@@ -351,7 +351,7 @@ def index(request: AuthHttpRequest) -> HttpResponse:
 def past(request: AuthHttpRequest, semester_id: Optional[int] = None):
 	students = get_visible_students(request.user, current=False)
 	if semester_id is not None:
-		semester = Semester.objects.get(pk=semester_id)
+		semester = get_object_or_404(Semester, pk=semester_id)
 		students = students.filter(semester=semester)
 	else:
 		semester = None
@@ -481,14 +481,15 @@ class ProblemSuggestionCreate(
 
 	def get_form(self, *args: Any, **kwargs: Any) -> BaseModelForm[ProblemSuggestion]:
 		form = super(CreateView, self).get_form(*args, **kwargs)
-		form.fields['unit'].queryset = Unit.objects.filter(group__hidden=False)
+		form.fields['unit'].queryset = Unit.objects.filter(group__hidden=False)  # type: ignore
 		return form
 
 	def get_initial(self):
 		initial = super().get_initial()
 		uid = self.kwargs.get('unit_id', None)
 		if uid is not None:
-			if Unit.objects.get(id=uid).group.hidden is False:
+			unit = get_object_or_404(Unit, id=uid)
+			if unit.group.hidden is False:
 				initial['unit'] = uid
 		return initial
 
@@ -533,7 +534,7 @@ class ProblemSuggestionUpdate(
 		context = super().get_context_data(**kwargs)
 		assert isinstance(self.request.user, User)
 		if not (self.request.user.is_staff or self.request.user == self.object.user):
-			raise PermissionError("Logged-in user cannot view this suggestion")
+			raise PermissionDenied("Logged-in user cannot view this suggestion")
 		return context
 
 
@@ -668,9 +669,9 @@ def certify(request: HttpRequest, student_id: int, checksum: str = None):
 			checksum = student.get_checksum(settings.CERT_HASH_KEY)
 			return HttpResponseRedirect(reverse_lazy('certify', args=(student.id, checksum)))
 		else:
-			raise SuspiciousOperation("Not authorized to generate checksum")
+			raise PermissionDenied("Not authorized to generate checksum")
 	elif checksum != student.get_checksum(settings.CERT_HASH_KEY):
-		raise SuspiciousOperation("Wrong hash")
+		raise PermissionDenied("Wrong hash")
 	else:
 		level_info = get_level_info(student)
 		context = {

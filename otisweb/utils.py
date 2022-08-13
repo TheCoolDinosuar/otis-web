@@ -90,14 +90,14 @@ def mailchimp_subscribe(request: AuthHttpRequest):
 				}
 			)
 			messages.success(
-				request, "The email {user.email} is now listed as the " +
+				request, f"The email {user.email} is now listed as the " +
 				"contact point for OTIS announcements from Evan."
 			)
 		except MailChimpError as e:
 			logger.error(f"Could not add {user.email} to MailChimp", exc_info=e)
 			messages.warning(
 				request,
-				"The email {user.email} could not be added to MailChimp, maybe it's subscribed already?"
+				f"The email {user.email} could not be added to MailChimp, maybe it's subscribed already?"
 			)
 	else:
 		raise Exception("No API KEY provided in production!")

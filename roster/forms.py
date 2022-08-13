@@ -96,9 +96,15 @@ class InquiryForm(forms.ModelForm):
 
 class DecisionForm(forms.ModelForm):
 	given_name = forms.CharField(
-		max_length=128, help_text="Your given (first) name, can be more than one"
+		label="First name (given name)",
+		max_length=128,
+		help_text="Your given (first) name, can be more than one",
 	)
-	surname = forms.CharField(max_length=128, help_text="Your family (last) name")
+	surname = forms.CharField(
+		label="Last name (surname)",
+		max_length=128,
+		help_text="Your family (last) name",
+	)
 	email_address = forms.EmailField(
 		label="Your email address (one you check)",
 		help_text="The email you want Evan to contact you with"
@@ -109,12 +115,15 @@ class DecisionForm(forms.ModelForm):
 		help_text="You should have gotten the passcode in your acceptance email.",
 		widget=forms.PasswordInput
 	)
+	gender = forms.ChoiceField(
+		choices=StudentRegistration.GENDER_CHOICES,
+		widget=forms.RadioSelect(),
+	)
 
 	class Meta:
 		model = StudentRegistration
 		fields = (
 			'parent_email',
-			'track',
 			'gender',
 			'graduation_year',
 			'school_name',

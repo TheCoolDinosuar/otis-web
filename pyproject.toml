@@ -9,7 +9,7 @@ repository = "https://github.com/vEnhance/otis-web"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-Django = "^4.0.6"
+Django = "^4.0.7"
 Faker = "^13.3.4"
 PyMySQL = "^1.0.2"
 crispy-bootstrap5 = "^0.6"
@@ -36,6 +36,7 @@ freezegun = "^1.1.0"
 types-freezegun = "^1.1.2"
 django-stubs-ext = "^0.4.0"
 django-qr-code = "^3.0.0"
+stripe = "^3.0.0"
 
 [tool.poetry.dev-dependencies]
 coverage = {extras = ["toml"], version = "^6.3.2"}
