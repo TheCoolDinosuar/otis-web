@@ -93,7 +93,7 @@ class HintUpdate(
 	context_object_name = "hint"
 	model = Hint
 	form_class = HintUpdateFormWithReason
-	object: ClassVar[Hint] = Hint()
+	object: ClassVar[Hint] = Hint()  # type: ignore
 
 	def form_valid(self, form: HintUpdateFormWithReason) -> HttpResponse:
 		reversion.set_comment(form.cleaned_data['reason'] or form.cleaned_data['content'])
@@ -114,7 +114,7 @@ class HintUpdateByPK(
 	context_object_name = "hint"
 	model = Hint
 	form_class = HintUpdateFormWithReason
-	object: ClassVar[Hint] = Hint()
+	object: ClassVar[Hint] = Hint()  # type: ignore
 
 	def form_valid(self, form: HintUpdateFormWithReason) -> HttpResponse:
 		reversion.set_comment(form.cleaned_data['reason'] or form.cleaned_data['content'])
@@ -169,19 +169,10 @@ class HintCreate(
 class HintDelete(HintObjectView, ExistStudentRequiredMixin, RevisionMixin, DeleteView):
 	context_object_name = "hint"
 	model = Hint
-	object: ClassVar[Hint] = Hint()
+	object: ClassVar[Hint] = Hint()  # type: ignore
 
 	def get_success_url(self):
 		return reverse_lazy("hint-list", args=(self.object.problem.puid, ))
-
-
-class ProblemDelete(ProblemObjectView, ExistStudentRequiredMixin, RevisionMixin, DeleteView):
-	context_object_name = "problem"
-	model = Problem
-	object: ClassVar[Problem] = Problem()
-
-	def get_success_url(self):
-		return reverse_lazy("arch-index")
 
 
 # this is actually the index page as well :P bit of a hack I guess...

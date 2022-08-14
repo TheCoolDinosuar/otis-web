@@ -5,7 +5,7 @@
 <div class="container">
 	<hr />
 	<h1>Payment for {{student}}</h1>
-	{% include "roster/invoice-table.html" %}
+	{% include "roster/invoice_table.html" %}
 
 	<p class="text-center">
 		<b class="fs-5">Amount to pay:</b>
@@ -22,6 +22,11 @@
 			value="{{invoice.id}}"
 			/>
 		<button class="button is-primary btn btn-success" id="payButton">Pay</button>
+	</p>
+	<p>
+	If you don't want to pay by credit card, see
+	<a href="{% static "info/parent-info .pdf" %}">parent info</a> (section 4.2)
+	for alternative methods.
 	</p>
 	<hr />
 	<p>
