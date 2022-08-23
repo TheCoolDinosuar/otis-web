@@ -52,6 +52,7 @@ class SemesterDownloadFileAdmin(admin.ModelAdmin):
 @admin.register(PSet)
 class PSetAdmin(admin.ModelAdmin):
 	list_display = (
+		'pk',
 		'approved',
 		'rejected',
 		'student',
@@ -60,6 +61,7 @@ class PSetAdmin(admin.ModelAdmin):
 		'clubs',
 	)
 	search_fields = (
+		'pk',
 		'unit__group__name',
 		'student__user__first_name',
 		'student__user__last_name',
@@ -130,6 +132,12 @@ class ProblemSuggestionAdmin(admin.ModelAdmin):
 	autocomplete_fields = (
 		'user',
 		'unit',
+	)
+	list_display_links = (
+		'id',
+		'user',
+		'source',
+		'description',
 	)
 	list_per_page = 50
 
